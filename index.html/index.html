@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>兔兔的自由人生清单 🐇</title>
+<style>
+  :root{--bg:#fff8f2;--card:#ffffff;--accent:#ff8fb1;--muted:#9b8c9b;}
+  body{font-family: "Noto Sans SC", "Helvetica Neue", Arial, sans-serif; background: linear-gradient(180deg,#fffaf6 0%, #fff3f8 100%); margin:0; padding:24px; color:#333;}
+  .wrap{max-width:760px;margin:18px auto;padding:20px;background:var(--card);border-radius:16px;box-shadow:0 8px 30px rgba(120,90,120,0.08);}
+  h1{margin:0 0 6px; font-size:22px;}
+  p.lead{margin:0 0 16px; color:var(--muted);}
+  ul.checklist{list-style:none;padding:0;margin:0;}
+  li.item{display:flex;align-items:center;padding:12px;border-radius:10px;margin-bottom:10px;border:1px dashed rgba(200,160,190,0.25);background:linear-gradient(180deg, rgba(255,250,250,0.9), white);}
+  li.item.completed{border-style:solid;border-color:rgba(150,190,180,0.25);opacity:0.9;transform:translateY(-1px);}
+  .left{flex:0 0 36px; display:flex;align-items:center;justify-content:center;}
+  .checkbox{width:20px;height:20px;border-radius:6px;border:2px solid #f1c6db;display:inline-block;cursor:pointer;position:relative;background:white;}
+  .checkbox.checked{background:linear-gradient(135deg,#ffd3e8,#ffb3d9);border-color:var(--accent);}
+  .text{flex:1;padding-left:12px;font-size:15px;}
+  .small{font-size:12px;color:var(--muted); margin-top:6px}
+  .controls{display:flex;gap:8px;align-items:center;margin-top:12px;}
+  button{background:var(--accent);border:none;padding:8px 12px;border-radius:10px;color:white;font-weight:600;cursor:pointer;box-shadow:0 6px 16px rgba(255,140,170,0.08)}
+  input[type="text"]{flex:1;padding:8px;border-radius:10px;border:1px solid rgba(0,0,0,0.06)}
+  .meta{display:flex;gap:10px;align-items:center;margin-top:12px;color:var(--muted);font-size:13px;}
+  .celebrate{position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;overflow:hidden;display:none;}
+  .confetti{position:absolute;width:10px;height:16px;border-radius:2px;opacity:0.95;transform:translate3d(0,0,0);will-change:transform;mix-blend-mode:screen;}
+  footer{margin-top:18px;text-align:center;color:var(--muted);font-size:13px}
+  .rabbit{width:54px;height:54px;border-radius:14px;background:linear-gradient(180deg,#fff 0,#ffdff0 100%);display:inline-flex;align-items:center;justify-content:center;margin-right:10px;box-shadow:0 6px 18px rgba(255,150,200,0.08)}
+  .small-btn{background:transparent;border:1px solid #f1c6db;padding:6px 8px;border-radius:8px;color:var(--accent);cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap" role="main">
+  <div style="display:flex;align-items:center;margin-bottom:10px">
+    <div class="rabbit" aria-hidden="true">🐰</div>
+    <div>
+      <h1>兔兔的自由人生清单</h1>
+      <p class="lead">完成一项就庆祝一下，别忘了过程比结果更重要 ✨</p>
+    </div>
+  </div>
+
+  <ul id="list" class="checklist" aria-live="polite"></ul>
+
+  <div class="controls" aria-hidden="false">
+    <input id="newItem" type="text" placeholder="添加自定义一项：随便玩、尝试或傻笑一下..." />
+    <button id="addBtn">添加</button>
+    <button id="resetBtn" class="small-btn" title="清空进度（不可恢复）">重置</button>
+  </div>
+
+  <div class="meta">
+    <div id="progress">已完成 0 / 0</div>
+    <div style="flex:1"></div>
+    <button id="exportBtn" class="small-btn">导出清单</button>
+  </div>
+
+  <footer>提示：你的勾选会保存在本地，刷新页面也不会丢失。完成一项，兔兔会撒花哦 🌸</footer>
+</div>
+
+<div id="celebrate" class="celebrate" aria-hidden="true"></div>
+
+<script>
+// 初始清单（来自我们之前聊的建议）
+const defaultItems = [
+  {id:1, text: "在房间里搭纸箱城堡或枕头堡垒，躲进去发呆", done:false},
+  {id:2, text: "拿一次性相机随便乱拍，不必修图", done:false},
+  {id:3, text: "随便做一个小手工（歪的更可爱）", done:false},
+  {id:4, text: "尝试一种没学过的乐器，哪怕三天", done:false},
+  {id:5, text: "用 Python 或 Processing 做一个会动的小怪兽", done:false},
+  {id:6, text: "随便做一顿奇怪的料理并大笑", done:false},
+  {id:7, text: "半夜去便利店买热饮（像偷跑的小孩）", done:false},
+  {id:8, text: "去没去过的小镇，假装在异国旅行", done:false},
+  {id:9, text: "把今天心情画成抽象色块，不求好看", done:false},
+  {id:10, text: "录一段歌，留给自己，不发别人听", done:false},
+  {id:11, text: "改造旧衣服，做一件怪衣服", done:false},
+  {id:12, text: "拼一副拼图，拼到一半放着也可以", done:false}
+];
+
+// localStorage key
+const KEY = 'rabbit_free_list_v1';
+
+// utility: load/save
+function loadItems(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(!raw) return defaultItems.slice();
+    const parsed = JSON.parse(raw);
+    return parsed;
+  }catch(e){
+    return defaultItems.slice();
+  }
+}
+function saveItems(items){
+  localStorage.setItem(KEY, JSON.stringify(items));
+}
+
+let items = loadItems();
+const listEl = document.getElementById('list');
+const progressEl = document.getElementById('progress');
+const celebrateEl = document.getElementById('celebrate');
+
+function render(){
+  listEl.innerHTML='';
+  items.forEach(it => {
+    const li = document.createElement('li');
+    li.className='item' + (it.done ? ' completed' : '');
+    li.dataset.id = it.id;
+    const left = document.createElement('div'); left.className='left';
+    const cb = document.createElement('div'); cb.className='checkbox' + (it.done? ' checked':''); cb.setAttribute('role','switch');
+    cb.onclick = () => toggle(it.id);
+    left.appendChild(cb);
+    const txt = document.createElement('div'); txt.className='text';
+    txt.innerHTML = '<strong>' + it.text + '</strong>';
+    const small = document.createElement('div'); small.className='small';
+    small.textContent = it.done ? '已完成 ✓ 给自己一个拥抱' : '过程比结果重要，享受当下';
+    txt.appendChild(small);
+    li.appendChild(left); li.appendChild(txt);
+    listEl.appendChild(li);
+  });
+  updateProgress();
+}
+
+function toggle(id){
+  items = items.map(it => it.id === id ? {...it, done: !it.done} : it);
+  saveItems(items);
+  render();
+  // if the one just checked becomes true, celebrate
+  const clicked = items.find(i => i.id===id);
+  if(clicked && clicked.done) doCelebrate();
+}
+
+function updateProgress(){
+  const done = items.filter(i=>i.done).length;
+  const total = items.length;
+  progressEl.textContent = `已完成 ${done} / ${total}`;
+}
+
+function addItem(text){
+  if(!text || !text.trim()) return;
+  const id = Date.now();
+  items.push({id, text: text.trim(), done:false});
+  saveItems(items);
+  render();
+  document.getElementById('newItem').value = '';
+}
+
+function resetAll(){
+  if(!confirm('确认重置清单并清空进度吗？')) return;
+  items = defaultItems.slice();
+  saveItems(items);
+  render();
+}
+
+// celebration - simple confetti
+function doCelebrate(){
+  celebrateEl.style.display = 'block'; celebrateEl.innerHTML='';
+  const colors = ['#ff8fb1','#ffd3e8','#ffeadb','#c9ffd8','#fff8b0'];
+  const count = 40;
+  for(let i=0;i<count;i++){
+    const c = document.createElement('div');
+    c.className='confetti';
+    c.style.background = colors[Math.floor(Math.random()*colors.length)];
+    c.style.left = (Math.random()*100) + '%';
+    c.style.top = (-10 - Math.random()*20) + '%';
+    c.style.transform = `rotate(${Math.random()*360}deg)`;
+    c.style.opacity = 0.9;
+    c.style.width = (8 + Math.random()*12) + 'px';
+    c.style.height = (10 + Math.random()*18) + 'px';
+    celebrateEl.appendChild(c);
+    // animate
+    const fall = c.animate([
+      {transform: `translateY(0) rotate(${Math.random()*360}deg)`, opacity:1},
+      {transform: `translateY(${window.innerHeight + 200}px) rotate(${Math.random()*720}deg)`, opacity:0.9}
+    ], {
+      duration: 1800 + Math.random()*1200,
+      easing: 'cubic-bezier(.2,.8,.2,1)',
+      delay: Math.random()*200
+    });
+    fall.onfinish = () => { c.remove(); };
+  }
+  // tiny bunny message
+  const b = document.createElement('div');
+  b.style.position='fixed'; b.style.left='50%'; b.style.top='18%'; b.style.transform='translateX(-50%)';
+  b.style.background='rgba(255,255,255,0.95)'; b.style.padding='10px 14px'; b.style.borderRadius='12px'; b.style.boxShadow='0 8px 30px rgba(120,90,120,0.08)';
+  b.textContent = '好耶！完成了一项，兔兔做得真棒 🤍';
+  celebrateEl.appendChild(b);
+  setTimeout(()=>{ celebrateEl.style.display='none'; celebrateEl.innerHTML=''; }, 2200);
+}
+
+// events
+document.getElementById('addBtn').onclick = () => addItem(document.getElementById('newItem').value);
+document.getElementById('newItem').addEventListener('keydown', (e)=>{ if(e.key==='Enter') addItem(e.target.value); });
+document.getElementById('resetBtn').onclick = resetAll;
+document.getElementById('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(items, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'rabbit_free_list.json'; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1500);
+};
+
+// initial render
+render();
+</script>
+</body>
+</html>
